@@ -1,0 +1,10 @@
+{
+  "name": "peering-conformance",
+  "private": true,
+  "type": "module",
+  "description": "Executable conformance suite for the peered-mesh preconditions (SPEC.md Â§1.5/Â§21, SPEC-NAMING Â§5.5-5.6). Run: node run.mjs",
+  "dependencies": {
+    "agentmesh": "https://storage.googleapis.com/agentmesh-releases/agentmesh-0.20.0.tgz",
+    "nkeys.js": "^1.1.0"
+  }
+}
