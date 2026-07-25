@@ -94,15 +94,41 @@ export default {
       const mine = queued.find((e) => /c13-queued-message/.test(String(e.text ?? "")));
       if (!mine) fails.push(`session could not see the queued message (inbox: ${listed.slice(0, 200)})`);
 
-      // 3. A reply from the session reaches the original sender.
+      // 3. A reply from the session reaches the original sender — and a second
+      //    turn that lands WHILE that reply is still in flight must survive.
+      //    The /reply route holds its inbox snapshot across the delivery await
+      //    (up to 30s here, because this sender never acks the reply); a
+      //    regression saved that stale snapshot after the await and ERASED any
+      //    message filed meanwhile: the sender got "queued" and turn 2 of every
+      //    fast-moving conversation silently vanished.
       if (inboxId) {
-        await cli(["reply", inboxId, "c13-session-answer"]);
+        const replyStarted = Date.now();
+        const replying = cli(["reply", inboxId, "c13-session-answer"]);
+        await sleep(2000); // let the route load its snapshot and start delivery
+        const req2 = signEnvelope(createEnvelope({
+          type: "request", from: senderId, to: agentId,
+          payload: { skill: "chat", input: { text: "c13-second-turn" } },
+        }), kpS);
+        const ack2 = JSON.parse(td.decode(
+          (await nc.request(`mesh.agent.${agentId}.inbox`, te.encode(JSON.stringify(req2)), { timeout: 20_000 })).data));
+        if ((ack2?.payload?.output ?? {}).queued !== true) {
+          fails.push(`second turn was not acknowledged as queued (got ${JSON.stringify(ack2?.payload?.output ?? {}).slice(0, 120)})`);
+        }
         let got = null;
         for (let i = 0; i < 20 && !got; i++) {
           await sleep(500);
           got = replies.find((r) => /c13-session-answer/.test(JSON.stringify(r?.payload ?? {}))) ?? null;
         }
         if (!got) fails.push("the session's reply never reached the sender's inbox");
+        await replying;
+        // The stale save (when the bug is present) fires when the 30s delivery
+        // timeout expires; don't declare survival before that moment has passed.
+        const remaining = 32_000 - (Date.now() - replyStarted);
+        if (remaining > 0) await sleep(remaining);
+        const after2 = await cli(["inbox", "--json"]);
+        if (!/c13-second-turn/.test(after2)) {
+          fails.push("a message that arrived while a reply was in flight vanished from the inbox (lost-update race)");
+        }
       }
 
       // 4. Acking clears it from the queue.
@@ -123,6 +149,6 @@ export default {
     }
     return fails.length
       ? { status: "fail", detail: fails.join("; ") }
-      : { status: "pass", detail: "sender got queued ack, session saw the message, its reply reached the sender, ack cleared the queue" };
+      : { status: "pass", detail: "sender got queued ack, session saw the message, its reply reached the sender, a second turn sent mid-reply survived, ack cleared the queue" };
   },
 };

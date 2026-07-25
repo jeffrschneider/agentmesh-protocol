@@ -889,6 +889,7 @@ The manifest is an agent's self-description document. It is published to the reg
 | `owner` | OPTIONAL | Owner key grouping this agent with others under one identity (§8.6). Defaults to the hosting node's key; always populated by the registry once stored. |
 | `owner_attestation` | CONDITIONAL | Owner-signed attestation binding the agent to `owner`. REQUIRED when `owner` differs from the hosting node's key (§8.6). |
 | `visibility` | OPTIONAL | Discovery listing tier: `public` (default), `unlisted`, or `private` (§8.6). |
+| `interaction` | OPTIONAL | How inbound requests are handled: `service` (no person in the loop) or `interactive` (a live session a human is using). Absent means unknown; read it as `interactive` (§8.3a). |
 | `accepts` | OPTIONAL | Event subjects this agent subscribes to. |
 | `emits` | OPTIONAL | Event subjects this agent publishes. |
 | `extensions` | OPTIONAL | Supported protocol extensions. |
@@ -904,6 +905,33 @@ Manifests SHOULD be signed by the agent's Ed25519 private key. The signing proce
 4. Set `trust.signature` to the base64url-encoded signature.
 
 Consumers of the manifest (registry, other agents) can verify the signature using the agent's Ed25519 public key (which is the manifest `id`).
+
+### 8.3a. Interaction Style
+
+`interaction` declares **how inbound requests are handled**, so a caller knows
+what reaching an agent means before it sends anything:
+
+| Value | Meaning |
+|-------|---------|
+| `service` | Handled without a person in the loop. Sending disturbs nobody, and a reply does not wait on human attention. |
+| `interactive` | Delivered into a live session a human is using. Sending may interrupt someone; a reply arrives when they get to it. |
+
+The field is OPTIONAL. Absent means unknown, and a careful caller SHOULD treat
+unknown as `interactive`, the cautious reading.
+
+This is a statement of fact about how the agent is currently running, not a
+claim about its quality or speed, and it is not a security boundary: an agent
+that misdeclares itself inconveniences callers rather than gaining privilege.
+Implementations SHOULD derive it from how they actually run rather than asking
+an operator to assert it. In the reference node, a per-message subprocess is
+`service` because no session is shared with a person; a queue drained by a
+live session is `interactive` unless the operator declares an unattended
+drainer.
+
+Callers MAY filter on it (Section 9.3). The motivating case: an agent asked to
+contact a coding agent named "Codex" cannot tell from a name or a description
+whether a message would land in somebody's working terminal. Prose is not
+machine-readable; this field is.
 
 ### 8.4. Availability is Presence, Not Manifest
 
