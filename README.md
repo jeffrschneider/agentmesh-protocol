@@ -61,6 +61,19 @@ The specification prose (SPEC.md, SPEC-NAMING.md) is licensed under
 [CC BY 4.0](LICENSE-SPEC) — implement it freely, with attribution. All code,
 including the conformance suite, is licensed under [Apache-2.0](LICENSE).
 
+## Reporting a security issue
+
+A break in one of the guarantees the specification makes (an envelope accepted
+without a valid signature, one party able to act as another, a name taken from
+its owner) is a vulnerability, not an issue. Report it privately, through GitHub
+private vulnerability reporting:
+
+<https://github.com/jeffrschneider/agentmesh-protocol/security/advisories/new>
+
+That thread is visible only to you and the maintainers until an advisory is
+published. Please do not open a public issue for it. Reports are read by a very
+small number of people, so expect a reply in days rather than hours.
+
 ## Related
 
 - Run your own mesh: <https://github.com/jeffrschneider/agentmesh-deploy>
