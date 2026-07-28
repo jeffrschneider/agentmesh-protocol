@@ -16,7 +16,14 @@ export default {
     const auth = () => jwtAuthenticator(env.creds.jwt, te.encode(env.creds.seed));
     const { AgentMesh } = sdk;
 
-    const a = await AgentMesh.connect(env.meshWsUrl, { authenticator: auth(), nkeySeed: td.decode(nkeys.createUser().getSeed()) });
+    // `maxInboundChars: 0` disables the SDK's own 64 KiB application-layer cap
+    // for this target. That cap and the bound this test measures are different
+    // things: §18.9 is the TRANSPORT limit (1 MiB per envelope, enforced by the
+    // broker), while the SDK cap bounds how much sender text reaches a model.
+    // c09's own title says "1 MB cap", so leaving the app cap on would make it
+    // assert the wrong layer — its 500 KB "under the cap" case would be refused
+    // by the SDK before the broker ever had an opinion.
+    const a = await AgentMesh.connect(env.meshWsUrl, { authenticator: auth(), nkeySeed: td.decode(nkeys.createUser().getSeed()), maxInboundChars: 0 });
     a.onRequest("echo", async (input) => ({ bytes: JSON.stringify(input).length }));
     await a.register({ name: "c09-target", visibility: "unlisted", skills: [{ id: "echo", name: "echo", description: "c09" }] });
     const idA = a.agentId;

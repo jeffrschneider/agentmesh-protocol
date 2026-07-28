@@ -3,8 +3,18 @@
 // unsigned request and a tampered request sent to a real responder are
 // refused without the handler ever running; the registry refuses a
 // registration whose node vouch is forged, over the wire.
+//
+// The responder here is the AGENT UNDER TEST (../lib/agent-under-test.mjs), so
+// this test runs against whichever SDK AGENTMESH_AGENT_SDK names — TypeScript
+// in this process by default, or another implementation as a child process.
+// That matters most for exactly this property: refusing an unsigned, tampered
+// or mis-attributed envelope before the handler is a security invariant each
+// SDK implements for itself from the spec, and it is precisely what a second
+// implementation is most likely to get wrong. The forging is all done here on
+// raw NATS, and the registry half is not agent-side at all, so both stay put.
 import { connect, jwtAuthenticator, nkeys } from "../../peering/lib/mesh.mjs";
-import { sdkModule as sdk, createEnvelope, signEnvelope } from "../../peering/lib/sdk.mjs";
+import { createEnvelope, signEnvelope } from "../../peering/lib/sdk.mjs";
+import { launchAgent, requireAgentOps } from "../lib/agent-under-test.mjs";
 
 const te = new TextEncoder();
 const td = new TextDecoder();
@@ -17,13 +27,26 @@ export default {
   async run(env) {
     if (!env.creds) throw new Error("env-skip: MESH_CREDS_FILE (durable NATS creds) required");
     const auth = () => jwtAuthenticator(env.creds.jwt, te.encode(env.creds.seed));
-    const { AgentMesh } = sdk;
-    const seed = (kp) => td.decode(kp.getSeed());
+    // Declared up front: an implementation that cannot register and answer a
+    // skill reports not-validated rather than a pass or a mystery timeout.
+    requireAgentOps("register", "respond");
 
-    let handled = 0;
-    const a = await AgentMesh.connect(env.meshWsUrl, { authenticator: auth(), nkeySeed: seed(nkeys.createUser()) });
-    a.onRequest("echo", async (input) => { handled++; return { ok: input }; });
-    await a.register({ name: "c03-target", visibility: "unlisted", skills: [{ id: "echo", name: "echo", description: "c03" }] });
+    // The responder, in whichever SDK this run selected. `a.handled` is what it
+    // reports having dispatched — one entry per handler execution.
+    const a = await launchAgent(env);
+    try {
+      await a.register({ name: "c03-target", visibility: "unlisted", skills: [{ id: "echo", name: "echo", description: "c03" }] });
+    } catch (e) {
+      await a.close(); // never leave a child process behind on a boot failure
+      throw e;
+    }
+    const handled = () => a.handled.length;
+    // An out-of-process agent reports what it dispatched on its own channel, so
+    // give that report a bounded moment to land before counting. It does not
+    // weaken the assertion — the count must still be EXACTLY one — it only
+    // stops a pipe that is a millisecond behind a cross-continent NATS reply
+    // from reading as "the handler never ran".
+    const settle = async (want) => { for (let i = 0; i < 30 && handled() < want; i++) await sleep(100); };
     const idA = a.agentId;
 
     const nc = await connect({ servers: env.meshWsUrl, authenticator: auth(), timeout: 15_000, maxReconnectAttempts: 0 });
@@ -41,7 +64,8 @@ export default {
       const good = signEnvelope(createEnvelope({ type: "request", from: idS, to: idA, payload: { skill: "echo", input: { n: 1 } } }), kpS);
       const goodReply = await ask(te.encode(JSON.stringify(good)));
       if (goodReply?.error || goodReply?.payload?.output?.ok?.n !== 1) fails.push(`control request failed: ${JSON.stringify(goodReply)?.slice(0, 120)}`);
-      if (handled !== 1) fails.push(`control: handler ran ${handled} times, want 1`);
+      await settle(1);
+      if (handled() !== 1) fails.push(`control: handler ran ${handled()} times, want 1`);
 
       // Unsigned: same envelope, sig stripped.
       const unsigned = { ...signEnvelope(createEnvelope({ type: "request", from: idS, to: idA, payload: { skill: "echo", input: { n: 2 } } }), kpS) };
@@ -62,7 +86,7 @@ export default {
       if (r3 && !r3.error) fails.push("mis-attributed request was ANSWERED without error");
 
       await sleep(1000);
-      if (handled !== 1) fails.push(`handler ran ${handled} times total, want exactly 1 (the control)`);
+      if (handled() !== 1) fails.push(`handler ran ${handled()} times total, want exactly 1 (the control)`);
 
       // Registry, over the wire: a manifest whose node vouch is forged.
       const kpM = nkeys.createUser();

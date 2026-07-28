@@ -1,0 +1,148 @@
+{
+  "comment": "Cancel conformance fixture (SPEC.md 10.8, 7.3, 19.2). Pins the bytes where two independent implementations drift: the six reason strings, the cancel-request payload shape, the canceled task-update payload shape, the propagated-cancel shape (reason upstream_cancelled, original reason carried in the note) and the exact note format, and the reject cases (unknown reason, missing reason). Both SDKs implement this as of 2026-07-27. THE FIXTURE IS THE AUTHORITY: when a test against it fails, fix the implementation, and when the fixture itself is believed wrong, change it only with a spec change alongside.",
+  "version": 1,
+  "spec": "SPEC.md 10.8 (cancel), 7.3 (transitions), 19.2 (canceled receipt), 12.2 (codes)",
+  "identities": {
+    "sender_seed": "SUAEGDPNTWXACIF45CA23BUY36RIMWZXW5LEHSEOK2ONS5JWJ7PBC2EWBA",
+    "sender": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+    "recipient": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+    "comment": "The same published test vectors budget.json and inbound-protections.json use, deliberately: they are not real identities and control nothing, and reusing them keeps any new private-key-shaped string out of the repository."
+  },
+  "reasons": {
+    "comment": "10.8: reason is REQUIRED and the enum is CLOSED - a cancel whose reason is missing or not one of these six exact strings is rejected as INVALID_ENVELOPE. The strings are the wire bytes; the descriptions are informative. deadline_exceeded and budget_exhausted deliberately reuse the 12.2 vocabulary so a cancel after an overdue mark or a budget pause reads consistently with the budget lifecycle (7.7).",
+    "enum": [
+      "user_requested",
+      "superseded",
+      "deadline_exceeded",
+      "budget_exhausted",
+      "upstream_cancelled",
+      "policy"
+    ],
+    "descriptions": {
+      "user_requested": "a human, or the requesting agent's own logic, decided the work is no longer wanted",
+      "superseded": "a newer request replaces this one; the answer would be discarded even if delivered",
+      "deadline_exceeded": "the budget's deadline (7.7) passed and the requester chose to stop rather than keep listening",
+      "budget_exhausted": "the cost ceiling was reached (7.7 pause) and the requester chose to cancel rather than raise the budget",
+      "upstream_cancelled": "the canceling agent's own Task was canceled and it is forwarding the cancellation to a delegate",
+      "policy": "an operator or policy layer terminated the work on content, permission, or tenancy grounds"
+    }
+  },
+  "shapes": {
+    "comment": "10.8: a cancel travels twice. (1) The task.cancel REQUEST to the performer's inbox: payload.skill 'task.cancel', payload.input carrying task_id + reason + optional note. (2) The canceled TASK UPDATE (a respond on mesh.task.{task_id}.update): payload.status 'canceled' with the same reason + optional note alongside it. The note is OPTIONAL free text and is OMITTED when absent, never null; the enum, not the note, is what the record carries as meaning.",
+    "cancel_request_payload": {
+      "skill": "task.cancel",
+      "input": {
+        "task_id": "0198c001-0000-7000-8000-00000000cafe",
+        "reason": "user_requested",
+        "note": "operator clicked stop"
+      }
+    },
+    "cancel_request_payload_no_note": {
+      "skill": "task.cancel",
+      "input": {
+        "task_id": "0198c001-0000-7000-8000-00000000cafe",
+        "reason": "superseded"
+      }
+    },
+    "canceled_update_payload": {
+      "status": "canceled",
+      "reason": "budget_exhausted",
+      "note": "not worth raising the ceiling"
+    },
+    "canceled_update_payload_no_note": {
+      "status": "canceled",
+      "reason": "deadline_exceeded"
+    }
+  },
+  "propagation": {
+    "comment": "10.8: an agent that delegated part of a live Task and receives a cancel for it forwards a cancel to each still-live delegate with reason 'upstream_cancelled', carrying the ORIGINAL reason in the note. Note format, pinned: the original reason string alone when the original cancel had no note; otherwise the original reason, then ': ' (colon space), then the original note. Both SDKs must produce these exact bytes.",
+    "cases": [
+      {
+        "case": "no_original_note",
+        "original": { "reason": "user_requested" },
+        "forwarded": { "reason": "upstream_cancelled", "note": "user_requested" }
+      },
+      {
+        "case": "with_original_note",
+        "original": { "reason": "deadline_exceeded", "note": "overdue since 16:00Z" },
+        "forwarded": { "reason": "upstream_cancelled", "note": "deadline_exceeded: overdue since 16:00Z" }
+      },
+      {
+        "case": "already_upstream",
+        "original": { "reason": "upstream_cancelled", "note": "user_requested" },
+        "forwarded": { "reason": "upstream_cancelled", "note": "upstream_cancelled: user_requested" },
+        "why": "propagation composes: a two-hop chain nests, and the reason stays upstream_cancelled at every hop"
+      }
+    ]
+  },
+  "invalid": {
+    "comment": "12.2 / 10.8: rejected as INVALID_ENVELOPE, at the door, before any state is touched. The task manager's door is fire-and-forget (warn-and-refuse, nothing persisted, nothing published); an SDK inbox replies with an INVALID_ENVELOPE error envelope where a reply is permitted.",
+    "cases": [
+      {
+        "case": "unknown_reason",
+        "input": { "task_id": "0198c001-0000-7000-8000-00000000cafe", "reason": "bored" },
+        "why": "the enum is closed - a reason invented in the field is rejected, never recorded"
+      },
+      {
+        "case": "missing_reason",
+        "input": { "task_id": "0198c001-0000-7000-8000-00000000cafe" },
+        "why": "reason is REQUIRED on every cancel"
+      },
+      {
+        "case": "null_reason",
+        "input": { "task_id": "0198c001-0000-7000-8000-00000000cafe", "reason": null },
+        "why": "absent is omitted, never null - and even as presence, null is not one of the six strings"
+      },
+      {
+        "case": "wrong_case_reason",
+        "input": { "task_id": "0198c001-0000-7000-8000-00000000cafe", "reason": "User_Requested" },
+        "why": "the strings are exact bytes; there is no case folding"
+      },
+      {
+        "case": "non_string_note",
+        "input": { "task_id": "0198c001-0000-7000-8000-00000000cafe", "reason": "policy", "note": 42 },
+        "why": "note, when present, is a string"
+      }
+    ]
+  },
+  "envelope": {
+    "comment": "A fully-formed, really-signed task.cancel request using the published sender identity. 'canonical' is the canonical envelope JSON (SPEC.md 5.3) WITHOUT the domain prefix; the signature covers signed_bytes_prefix + canonical. Any conforming implementation MUST rebuild those bytes from the envelope and verify the signature; one changed byte of reason or note must fail verification.",
+    "signed_bytes_prefix": "agentmesh-envelope-v1\n",
+    "canonical": "{\"from\":\"UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\",\"id\":\"0198c001-0000-7000-8000-00000000ca5e\",\"payload\":{\"input\":{\"note\":\"re-planned; a broader query replaces this one\",\"reason\":\"superseded\",\"task_id\":\"0198c001-0000-7000-8000-00000000cafe\"},\"skill\":\"task.cancel\"},\"to\":\"UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A\",\"trace\":{\"parent_span_id\":null,\"span_id\":\"ca5eca5eca5eca5e\",\"trace_id\":\"ca5eca5eca5eca5eca5eca5eca5eca5e\"},\"ts\":\"2026-07-27T15:00:00.000Z\",\"type\":\"request\",\"v\":\"0.2\"}",
+    "signed": {
+      "v": "0.2",
+      "id": "0198c001-0000-7000-8000-00000000ca5e",
+      "type": "request",
+      "ts": "2026-07-27T15:00:00.000Z",
+      "from": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+      "to": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+      "trace": {
+        "trace_id": "ca5eca5eca5eca5eca5eca5eca5eca5e",
+        "span_id": "ca5eca5eca5eca5e",
+        "parent_span_id": null
+      },
+      "payload": {
+        "skill": "task.cancel",
+        "input": {
+          "task_id": "0198c001-0000-7000-8000-00000000cafe",
+          "reason": "superseded",
+          "note": "re-planned; a broader query replaces this one"
+        }
+      },
+      "sig": "7lJKv_WV75kGSSjA1f38WS0hdvQDAV6M3NpiVt4b5cvkKk28bgSdSnyO2fQhJ4fsOemMLiSiw4wqo0VNUDB6Cg"
+    }
+  },
+  "transitions": {
+    "comment": "7.3: which states may cancel. The paused states can - 7.7's BUDGET_EXHAUSTED pause parks a Task in input_required precisely so the requester can revise the budget OR cancel and keep the partial artifacts. Terminal states cannot (TASK_NOT_CANCELABLE).",
+    "cancelable_from": ["submitted", "working", "input_required", "auth_required"],
+    "not_cancelable_from": ["completed", "failed", "canceled", "rejected"]
+  },
+  "not_covered": {
+    "comment": "Boundaries, written down so nobody mistakes them for gaps.",
+    "items": [
+      "Whether a performer actually PROPAGATES is unverifiable by design (10.8: the MUST is honor-system inside the performer). This fixture pins the shapes a propagating implementation must produce; the teeth are the task manager's stranded-delegate flag (stranded: true + mesh.event.task.stranded), which is service behavior tested in services/, not here.",
+      "There is deliberately NO bounded acknowledgement to pin: for the requester, cancellation is effective when sent, and delivery to the performer is on mailbox time (10.8).",
+      "The canceled metering receipt (19.2: mesh.event.metering.task_canceled, cancel_reason) is the task manager's emission, tested in services/, not an SDK wire shape."
+    ]
+  }
+}

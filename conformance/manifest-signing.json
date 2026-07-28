@@ -1,0 +1,34 @@
+{
+  "comment": "Manifest key-claim conformance fixture (SPEC.md §8.3). The TS SDK (sdk-typescript/) and the Rust SDK (sdk-rust/) MUST both reproduce these exact canonical bytes and these exact signatures. A silent drift here does not throw — it makes one SDK refuse to seal to agents registered by the other, or worse, makes a key binding unverifiable, which is the failure this claim exists to prevent (assessment 2026-07-25 finding 6.5). Tests: sdk-rust/tests/manifest_signing.rs and sdk-typescript/__tests__/unit/manifest-signing.test.ts. If a test here fails after an edit, agree with the fixture rather than updating it: deployed agents hold registered manifests signed over these bytes.",
+  "canonical_form": "<type>\\n<issued_at>\\n<id>\\n<encryption_key> — UTF-8, four newline-joined components, always four (an absent encryption_key is the empty string, so the bytes end with the separator). Newline-joined rather than canonical JSON on purpose: with three constrained strings there is nothing to canonicalize, and therefore nothing for two SDKs to diverge on. Only the last component is unbounded, so the encoding is unambiguous. A component containing a newline MUST be refused.",
+  "key_claim_v1": {
+    "type": "agentmesh-manifest-key-v1",
+    "comment": "The normal case: an agent that published an X25519 encryption key. `agent_seed` is a TEST VECTOR — never a real identity. Ed25519 is deterministic (RFC 8032), so the signature below is reproducible byte for byte from the seed and the canonical bytes.",
+    "agent_seed": "SUAEGDPNTWXACIF45CA23BUY36RIMWZXW5LEHSEOK2ONS5JWJ7PBC2EWBA",
+    "id": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+    "encryption_key": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw",
+    "issued_at": "2026-07-25T00:00:00.000Z",
+    "canonical": "agentmesh-manifest-key-v1\n2026-07-25T00:00:00.000Z\nUBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\nB6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw",
+    "signature": "20WLBlT31230Mk1QVNC1SxmZD21YWZdLTWmCb_wE9u9hukX5jSUAgpiQfBinam7J4S92Ih98FjKGoCN7BAtAAw",
+    "trust": {
+      "comment": "The block the claim is published in, so the wire field NAMES are pinned too, not just the bytes.",
+      "issued_at": "2026-07-25T00:00:00.000Z",
+      "signature": "20WLBlT31230Mk1QVNC1SxmZD21YWZdLTWmCb_wE9u9hukX5jSUAgpiQfBinam7J4S92Ih98FjKGoCN7BAtAAw"
+    }
+  },
+  "key_claim_v1_no_encryption_key": {
+    "type": "agentmesh-manifest-key-v1",
+    "comment": "An agent that declared NO encryption key still signs the claim, over the empty string — so the claim reads 'this agent publishes no encryption key' and an attacker who adds one has to break the signature rather than merely add a field. Same agent seed as above.",
+    "agent_seed": "SUAEGDPNTWXACIF45CA23BUY36RIMWZXW5LEHSEOK2ONS5JWJ7PBC2EWBA",
+    "id": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+    "encryption_key": "",
+    "issued_at": "2026-07-25T00:00:00.000Z",
+    "canonical": "agentmesh-manifest-key-v1\n2026-07-25T00:00:00.000Z\nUBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\n",
+    "signature": "EZw0M49Ofd97KwivwWszqztqr70lVaTisvLtVbY8sER_6Yt5OwWo3BHpC1Ddz_fOZ-CWSQ6KAzZguzs786v6Cg"
+  },
+  "not_covered": {
+    "comment": "Fields the claim deliberately does NOT cover, listed here so a future implementer does not 'fix' the narrowness by widening it. owner/visibility/sandbox: the registry rewrites them server-side after the agent signs (services/src/registry/handlers/register.ts), so a signature over them can never verify for the party reading the manifest back. interaction: §8.3a states it is not a security boundary, and it already fails safe (absent or unverified reads as `interactive`). Everything descriptive (name, skills, cost, …): a forged registry reply can still lie about those, which is a response-authenticity problem, not a key-binding one.",
+    "registry_rewritten": ["owner", "visibility", "sandbox"],
+    "not_a_security_boundary": ["interaction"]
+  }
+}

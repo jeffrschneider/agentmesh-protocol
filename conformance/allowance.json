@@ -1,0 +1,402 @@
+{
+  "comment": "Owner-allowance conformance fixture (extensions/EXT-8-allowance.md; SPEC.md 7.7, 19.3). Pins the places where two independent node implementations drift: the allowance document's shape and canonical serialization under the owner signature (tag agentmesh-allowance-v1), floor-rounded metering arithmetic, smallest-remaining ceiling precedence, the refusal field names, and both exhaustion behaviours. All signed vectors were generated with the TypeScript SDK's canonicalization and tagged signing. THE FIXTURE IS THE AUTHORITY: when a test against it fails, fix the implementation, and when the fixture itself is believed wrong, change it only with a spec change alongside.",
+  "version": 1,
+  "spec": "extensions/EXT-8-allowance.md 1-3, SPEC.md 7.7 (budget), 19.3 (money axis), 12.2 (codes)",
+  "identities": {
+    "sender_seed": "SUAEGDPNTWXACIF45CA23BUY36RIMWZXW5LEHSEOK2ONS5JWJ7PBC2EWBA",
+    "sender": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+    "recipient": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+    "comment": "The same published test vectors budget.json and signature-tags.json use, deliberately: they are not real identities and control nothing, and reusing them keeps any new private-key-shaped string out of the repository. Here the sender key plays the OWNER (owner_key, the signer) and the recipient key plays the AGENT the allowance governs."
+  },
+  "document": {
+    "comment": "EXT-8 1: v is the integer 1; ceilings[].scope is a closed enum (task | context | day); amount_micro and per_1k_tokens_micro are non-negative integer micro-units (1,000,000 micro-units = one currency unit; no floats near money, ever); currency an ISO 4217 code; cost_model REQUIRED; on_exhausted one of refuse | ask_owner; optional task_id / context_id narrow a ceiling; absent fields are OMITTED in canonical JSON, never null. sig is base64url over signed_bytes_prefix + canonical (the prefix never appears in the document). Every invalid case except missing_sig carries a GENUINE owner signature over its own canonical bytes, so each one is invalid for exactly the single stated reason - shape rejection never depends on a signature failure.",
+    "signed_bytes_prefix": "agentmesh-allowance-v1\n",
+    "valid": [
+      {
+        "case": "three_scopes",
+        "note": "the reference vector: a per-task ceiling, a context ceiling narrowed to one event, and a day ceiling",
+        "canonical": "{\"agent\":\"UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A\",\"ceilings\":[{\"amount_micro\":500000,\"scope\":\"task\"},{\"amount_micro\":3000000,\"context_id\":\"meetup-s1-e4\",\"scope\":\"context\"},{\"amount_micro\":10000000,\"scope\":\"day\"}],\"cost_model\":{\"currency\":\"USD\",\"per_1k_tokens_micro\":1500},\"on_exhausted\":\"refuse\",\"owner_key\":\"UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\",\"updated_at\":\"2026-07-28T15:00:00.000Z\",\"v\":1}",
+        "signed": {
+          "v": 1,
+          "agent": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+          "owner_key": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+          "cost_model": {
+            "per_1k_tokens_micro": 1500,
+            "currency": "USD"
+          },
+          "ceilings": [
+            {
+              "scope": "task",
+              "amount_micro": 500000
+            },
+            {
+              "scope": "context",
+              "context_id": "meetup-s1-e4",
+              "amount_micro": 3000000
+            },
+            {
+              "scope": "day",
+              "amount_micro": 10000000
+            }
+          ],
+          "on_exhausted": "refuse",
+          "updated_at": "2026-07-28T15:00:00.000Z",
+          "sig": "0p8glje-SWVqM-Xh_xnltJukVBcsP1rM_awIKN2KgaL2k1-XafggdWobrmqTswVMddhpoCmQm_4RnDOFHLCLBw"
+        }
+      },
+      {
+        "case": "ask_owner",
+        "note": "a single day ceiling with the ask-owner exhaustion behaviour, in a second currency",
+        "canonical": "{\"agent\":\"UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A\",\"ceilings\":[{\"amount_micro\":2000000,\"scope\":\"day\"}],\"cost_model\":{\"currency\":\"EUR\",\"per_1k_tokens_micro\":900},\"on_exhausted\":\"ask_owner\",\"owner_key\":\"UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\",\"updated_at\":\"2026-07-28T15:00:00.000Z\",\"v\":1}",
+        "signed": {
+          "v": 1,
+          "agent": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+          "owner_key": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+          "cost_model": {
+            "per_1k_tokens_micro": 900,
+            "currency": "EUR"
+          },
+          "ceilings": [
+            {
+              "scope": "day",
+              "amount_micro": 2000000
+            }
+          ],
+          "on_exhausted": "ask_owner",
+          "updated_at": "2026-07-28T15:00:00.000Z",
+          "sig": "n93OBpyjVlqXHsw51Wio_iMnKPWuhv-raaAKfUwNrLcsW3rT3Q5dqQD7K1Z230kVG5UiGM1ObRzrKKu_cm8CDw"
+        }
+      },
+      {
+        "case": "narrowed_zero_ceiling",
+        "note": "task_id narrows the ceiling to one Task, and a zero amount is legal - a ceiling pinned shut",
+        "canonical": "{\"agent\":\"UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A\",\"ceilings\":[{\"amount_micro\":0,\"scope\":\"task\",\"task_id\":\"0198c001-0000-7000-8000-00000000a11c\"}],\"cost_model\":{\"currency\":\"USD\",\"per_1k_tokens_micro\":1500},\"on_exhausted\":\"refuse\",\"owner_key\":\"UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\",\"updated_at\":\"2026-07-28T16:00:00.000Z\",\"v\":1}",
+        "signed": {
+          "v": 1,
+          "agent": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+          "owner_key": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+          "cost_model": {
+            "per_1k_tokens_micro": 1500,
+            "currency": "USD"
+          },
+          "ceilings": [
+            {
+              "scope": "task",
+              "task_id": "0198c001-0000-7000-8000-00000000a11c",
+              "amount_micro": 0
+            }
+          ],
+          "on_exhausted": "refuse",
+          "updated_at": "2026-07-28T16:00:00.000Z",
+          "sig": "4vZqK8HcIqQ9ZxXIaIADd_rXMliOzt7ycSFpMWj24u7fniua_nY9udhunjkWc2_eT7SKChnkoOeijr3ykelLBQ"
+        }
+      }
+    ],
+    "invalid": [
+      {
+        "case": "missing_sig",
+        "document": {
+          "v": 1,
+          "agent": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+          "owner_key": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+          "cost_model": {
+            "per_1k_tokens_micro": 900,
+            "currency": "EUR"
+          },
+          "ceilings": [
+            {
+              "scope": "day",
+              "amount_micro": 2000000
+            }
+          ],
+          "on_exhausted": "ask_owner",
+          "updated_at": "2026-07-28T15:00:00.000Z"
+        },
+        "why": "a node MUST NOT enforce an unsigned document, and MUST NOT treat a non-verifying one as absent - it fails closed (every ceiling exhausted) until a valid document replaces it"
+      },
+      {
+        "case": "float_money",
+        "document": {
+          "v": 1,
+          "agent": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+          "owner_key": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+          "cost_model": {
+            "per_1k_tokens_micro": 1500,
+            "currency": "USD"
+          },
+          "ceilings": [
+            {
+              "scope": "day",
+              "amount_micro": 2000000.5
+            }
+          ],
+          "on_exhausted": "refuse",
+          "updated_at": "2026-07-28T15:00:00.000Z",
+          "sig": "-cjZBrUU7DzOOecDNHDF7jMWiS7AlQpQfPxQtEXObT_JQaOe2NejlH7Dt1z85n577Obz0sJj3qlpNK0gpnioAw"
+        },
+        "why": "amount_micro must be an integer (19.3: no floats near money); the signature is genuine, so the float is the only fault"
+      },
+      {
+        "case": "unknown_scope",
+        "document": {
+          "v": 1,
+          "agent": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+          "owner_key": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+          "cost_model": {
+            "per_1k_tokens_micro": 1500,
+            "currency": "USD"
+          },
+          "ceilings": [
+            {
+              "scope": "week",
+              "amount_micro": 1000000
+            }
+          ],
+          "on_exhausted": "refuse",
+          "updated_at": "2026-07-28T15:00:00.000Z",
+          "sig": "JY7q_dIgLdyM6th2UKBIkJ_ZfhD3PknXGX-YGClJItDQY03JHmbT5S-xPsZC087NmSkZlnPTAeylQbedh9B-DQ"
+        },
+        "why": "scope is a closed enum: task | context | day. A consumer MUST reject an unknown scope rather than ignore the ceiling - an ignored ceiling is an unenforced one"
+      },
+      {
+        "case": "negative_amount",
+        "document": {
+          "v": 1,
+          "agent": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+          "owner_key": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+          "cost_model": {
+            "per_1k_tokens_micro": 1500,
+            "currency": "USD"
+          },
+          "ceilings": [
+            {
+              "scope": "task",
+              "amount_micro": -1
+            }
+          ],
+          "on_exhausted": "refuse",
+          "updated_at": "2026-07-28T15:00:00.000Z",
+          "sig": "LRGBXt7cNhcqIzZ4awkHzL3LuSITTTz36v9zt6teP_iGSz8AqLJ6x1v5SEin_ne1-3VqNQ4kA-LWqLyfB4KLDw"
+        },
+        "why": "amount_micro must be non-negative (a pinned-shut ceiling is 0, never -1)"
+      },
+      {
+        "case": "missing_cost_model",
+        "document": {
+          "v": 1,
+          "agent": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+          "owner_key": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+          "ceilings": [
+            {
+              "scope": "day",
+              "amount_micro": 1000000
+            }
+          ],
+          "on_exhausted": "refuse",
+          "updated_at": "2026-07-28T15:00:00.000Z",
+          "sig": "KKW21jkJj9Bi_R1PI0mzFVivOBV-ghyU2cxjLuld3pI9FimT4qKsXjRJ685Aw8c9LLJKOykGMn7kDjke-uNBCg"
+        },
+        "why": "cost_model is REQUIRED - a ceiling without a declared conversion cannot be metered against, and a document that cannot be metered against enforces nothing"
+      }
+    ]
+  },
+  "metering": {
+    "comment": "EXT-8 2: cost_micro = floor(tokens * per_1k_tokens_micro / 1000), integer arithmetic throughout. FLOOR, pinned: rounding toward zero means the node never charges a partial micro-unit against the owner's ceiling, and any two nodes that meter the same invocation agree to the micro-unit. Metered spend is accounted to the Task, its context_id, and the UTC calendar day of the metering instant.",
+    "rounding": "floor",
+    "cases": [
+      {
+        "tokens": 1000,
+        "per_1k_tokens_micro": 1500,
+        "cost_micro": 1500,
+        "why": "exact: one thousand tokens at the per-1k rate"
+      },
+      {
+        "tokens": 333,
+        "per_1k_tokens_micro": 100,
+        "cost_micro": 33,
+        "why": "33.3 floors to 33"
+      },
+      {
+        "tokens": 1,
+        "per_1k_tokens_micro": 999,
+        "cost_micro": 0,
+        "why": "0.999 floors to 0 - a single tiny invocation can meter as zero; the ceiling check uses the metered value, not a re-derivation"
+      },
+      {
+        "tokens": 123457,
+        "per_1k_tokens_micro": 1500,
+        "cost_micro": 185185,
+        "why": "185185.5 floors to 185185"
+      },
+      {
+        "tokens": 0,
+        "per_1k_tokens_micro": 1500,
+        "cost_micro": 0,
+        "why": "no tokens, no spend"
+      },
+      {
+        "tokens": 2048,
+        "per_1k_tokens_micro": 1500,
+        "cost_micro": 3072,
+        "why": "exact: no rounding when the product divides evenly"
+      }
+    ]
+  },
+  "precedence": {
+    "comment": "EXT-8 2: every applicable ceiling applies at once. Specificity (task, then context, then day) decides what a ceiling COVERS - which spend is accounted against it - never which ceiling wins. The BINDING ceiling for an admission decision is whichever applicable ceiling has the smallest REMAINING amount (amount_micro minus the spend already accounted to that ceiling's scope). remaining_micro and binding_scope are pinned so implementations agree on the arithmetic, not just the verdict.",
+    "cases": [
+      {
+        "case": "day_binds_over_task",
+        "applicable": [
+          {
+            "scope": "task",
+            "amount_micro": 500000,
+            "spent_micro": 0
+          },
+          {
+            "scope": "day",
+            "amount_micro": 10000000,
+            "spent_micro": 9900000
+          }
+        ],
+        "estimate_micro": 200000,
+        "binding_scope": "day",
+        "remaining_micro": 100000,
+        "expect": "refuse",
+        "why": "the day ceiling has 100000 remaining against a 200000 estimate; the task ceiling's larger headroom is irrelevant - specificity never outranks the smaller remainder"
+      },
+      {
+        "case": "task_binds",
+        "applicable": [
+          {
+            "scope": "task",
+            "amount_micro": 500000,
+            "spent_micro": 0
+          },
+          {
+            "scope": "day",
+            "amount_micro": 10000000,
+            "spent_micro": 1000000
+          }
+        ],
+        "estimate_micro": 600000,
+        "binding_scope": "task",
+        "remaining_micro": 500000,
+        "expect": "refuse",
+        "why": "the estimate exceeds the whole per-task ceiling even though the day has 9000000 left"
+      },
+      {
+        "case": "narrowed_context_not_applicable",
+        "request_context_id": "some-other-context",
+        "applicable": [
+          {
+            "scope": "context",
+            "context_id": "meetup-s1-e4",
+            "amount_micro": 3000000,
+            "spent_micro": 2950000
+          },
+          {
+            "scope": "day",
+            "amount_micro": 10000000,
+            "spent_micro": 0
+          }
+        ],
+        "estimate_micro": 500000,
+        "binding_scope": "day",
+        "remaining_micro": 10000000,
+        "expect": "accept",
+        "why": "a context ceiling narrowed by context_id constrains ONLY that context; work in a different context is measured against the remaining applicable ceilings alone"
+      },
+      {
+        "case": "narrowed_context_binds",
+        "request_context_id": "meetup-s1-e4",
+        "applicable": [
+          {
+            "scope": "context",
+            "context_id": "meetup-s1-e4",
+            "amount_micro": 3000000,
+            "spent_micro": 2950000
+          },
+          {
+            "scope": "day",
+            "amount_micro": 10000000,
+            "spent_micro": 0
+          }
+        ],
+        "estimate_micro": 500000,
+        "binding_scope": "context",
+        "remaining_micro": 50000,
+        "expect": "refuse",
+        "why": "the same ceilings, but the work is inside the narrowed context: 50000 remaining binds"
+      },
+      {
+        "case": "fits_within_all",
+        "applicable": [
+          {
+            "scope": "task",
+            "amount_micro": 500000,
+            "spent_micro": 0
+          },
+          {
+            "scope": "day",
+            "amount_micro": 10000000,
+            "spent_micro": 5000000
+          }
+        ],
+        "estimate_micro": 400000,
+        "binding_scope": "task",
+        "remaining_micro": 500000,
+        "expect": "accept",
+        "why": "the task ceiling is the binding one (smallest remaining) and the estimate fits inside it, so the work is admitted"
+      },
+      {
+        "case": "estimate_equals_remaining",
+        "applicable": [
+          {
+            "scope": "day",
+            "amount_micro": 1000000,
+            "spent_micro": 400000
+          }
+        ],
+        "estimate_micro": 600000,
+        "binding_scope": "day",
+        "remaining_micro": 600000,
+        "expect": "accept",
+        "why": "Equality admits: 'would exceed' is strict, and spending exactly the remaining balance is within the allowance. Pinned 2026-07-28 after two implementations faced this then-unpinned boundary independently."
+      }
+    ]
+  },
+  "refusal": {
+    "comment": "EXT-8 2 / SPEC.md 12.2, 19.3. The allowance-broke refusal is byte-identical to budget.json's budget_insufficient shape, deliberately: on the wire, a refusal driven by the responder's own spending policy is indistinguishable from one driven by a too-low offer. It is legal even against a request that offered no ceiling at all - the estimate is then a price quote, and a resubmission at or above it is acceptance (19.3).",
+    "budget_insufficient": {
+      "error_code": "BUDGET_INSUFFICIENT",
+      "details": {
+        "estimate": {
+          "amount_micro": 500000,
+          "currency": "USD"
+        }
+      },
+      "note": "details.estimate is a cost_ceiling-shaped object: the node's price for the work"
+    }
+  },
+  "exhaustion": {
+    "comment": "EXT-8 2: what a node does when admitting the work would cross a ceiling, keyed by the document's on_exhausted.",
+    "refuse": {
+      "on_exhausted": "refuse",
+      "expect": "refuse at admission with BUDGET_INSUFFICIENT carrying details.estimate (the refusal shape above); no owner interaction, no work performed"
+    },
+    "ask_owner": {
+      "on_exhausted": "ask_owner",
+      "expect": "do NOT refuse: hold the work unstarted and surface the question through the node's owner channel (the EXT-6 review surface); proceed only if the owner raises the ceiling, and refuse with the same BUDGET_INSUFFICIENT shape if the owner declines"
+    }
+  },
+  "not_covered": {
+    "comment": "Boundaries, written down so nobody mistakes them for gaps.",
+    "items": [
+      "Whether a node's spend report is TRUE is unverifiable by design (7.7: honor-system spend). This fixture pins shapes and arithmetic, not honesty.",
+      "The platform-side rollups and the mesh.event.agent.allowance_exceeded flag (EXT-8 3) are facilitation over 19.2 receipts, not node behaviour; they are not pinned here.",
+      "Settlement, payment and charging are out of scope for the extension and for this fixture.",
+      "Cross-agent allowances do not exist: constraining someone else's agent is a contract (a budget on a signed request), not a config."
+    ]
+  }
+}

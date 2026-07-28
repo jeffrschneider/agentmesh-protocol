@@ -1,0 +1,130 @@
+{
+  "comment": "Sender pre-flight conformance fixture (SPEC.md 6.4b). Pins the local-refusal decisions a sending SDK MUST make before publishing: sender text against the recipient's declared cap or the 22.5 default, the serialized envelope against the transport's advertised maximum payload (18.9), and content types against the manifest (8.1) - each refused locally with the SAME error code the recipient would answer with, so a pre-flight refusal and a remote refusal are indistinguishable to the caller's error handling. One file per concern: this is the sibling of accept-signal.json. THE FIXTURE IS THE AUTHORITY: when a test against it fails, fix the implementation, and when the fixture itself is believed wrong, change it only with a spec change alongside.",
+  "version": 1,
+  "spec": "SPEC.md 6.4b (sender pre-flight), 22.5 (cap, extraction ladder, UTF-16 measurement), 18.9 (max payload), 8.1/8.2 (limits, rate_limits, skills), 12.2 (codes)",
+  "identities": {
+    "sender_seed": "SUAEGDPNTWXACIF45CA23BUY36RIMWZXW5LEHSEOK2ONS5JWJ7PBC2EWBA",
+    "sender": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+    "recipient": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+    "comment": "The same published test vectors budget.json and inbound-protections.json use, deliberately: they are not real identities and control nothing, and reusing them keeps any new private-key-shaped string out of the repository. Nothing in this fixture is signed - every case pins a LOCAL decision made before an envelope is published, so there are no wire bytes to sign."
+  },
+  "measurement": {
+    "comment": "The sender measures exactly as the receiver would (6.4b), or the mirror is broken by construction.",
+    "unit": "UTF-16 code units of the extracted sender text - not bytes, not scalar values; U+1F600 counts 2 (22.5)",
+    "extraction": "the 22.5 ladder, unchanged: a string payload is the text; else walk text, message, prompt; else compact JSON of the payload is what gets measured",
+    "comparison": "strictly greater-than: a message AT the cap is legal and MUST be published (22.5)"
+  },
+  "sender_text": {
+    "comment": "declared_cap null means the recipient's manifest declares no limits.max_inbound_chars (8.1), so the 22.5 default governs. The three shapes the spec names: at-cap, the over-cap boundary, and the undeclared default.",
+    "default_max_inbound_chars": 65536,
+    "cases": [
+      {
+        "id": "declared_at_cap",
+        "declared_cap": 100,
+        "text_utf16_len": 100,
+        "verdict": "publish",
+        "why": "at the cap is legal - the comparison is strictly greater-than"
+      },
+      {
+        "id": "declared_over_by_one",
+        "declared_cap": 100,
+        "text_utf16_len": 101,
+        "verdict": "refuse_local",
+        "error_code": "CONTEXT_TOO_LARGE",
+        "retryable": false,
+        "why": "the boundary case: one unit over the declared cap refuses locally with the code 22.5 would answer with"
+      },
+      {
+        "id": "undeclared_default_at_cap",
+        "declared_cap": null,
+        "text_utf16_len": 65536,
+        "verdict": "publish",
+        "why": "no declared cap: the 22.5 default (65,536) governs, and at the default is legal"
+      },
+      {
+        "id": "undeclared_default_over_by_one",
+        "declared_cap": null,
+        "text_utf16_len": 65537,
+        "verdict": "refuse_local",
+        "error_code": "CONTEXT_TOO_LARGE",
+        "retryable": false,
+        "why": "no declared cap: one unit over the 22.5 default refuses locally"
+      },
+      {
+        "id": "astral_at_cap",
+        "declared_cap": 3,
+        "text": "😀a",
+        "text_utf16_len": 3,
+        "verdict": "publish",
+        "why": "U+1F600 counts 2 code units, plus 'a' is 3 - at the cap. The unit must match 22.5's exactly or one side refuses what the other accepts"
+      },
+      {
+        "id": "astral_over",
+        "declared_cap": 3,
+        "text": "😀😀",
+        "text_utf16_len": 4,
+        "verdict": "refuse_local",
+        "error_code": "CONTEXT_TOO_LARGE",
+        "retryable": false,
+        "why": "two astral characters are 4 code units, over a cap of 3 - an implementation counting scalar values (2) would wrongly publish"
+      }
+    ]
+  },
+  "envelope_size": {
+    "comment": "Against the transport's advertised maximum payload (18.9). This is the one pre-flight check with no remote mirror: an oversized publish never reaches the recipient at all - the transport refuses it - so the pre-flight turns a raw transport error into a deterministic, protocol-legible local refusal under the same code a caller already handles for 'too large'. error.details names the limit that fired so an operator can tell the two refusals apart; the CODE is the same so a caller's error handling never has to.",
+    "cases": [
+      {
+        "id": "at_max_payload",
+        "max_payload_bytes": 1048576,
+        "envelope_bytes": 1048576,
+        "verdict": "publish",
+        "why": "at the transport bound is legal - the transport accepts payloads up to and including its maximum"
+      },
+      {
+        "id": "over_max_payload",
+        "max_payload_bytes": 1048576,
+        "envelope_bytes": 1048577,
+        "verdict": "refuse_local",
+        "error_code": "CONTEXT_TOO_LARGE",
+        "retryable": false,
+        "details_limit": "transport_max_payload",
+        "why": "one byte over is refused before publish; 18.9's remedy (an Object Store ref part) is the correct path for the content"
+      }
+    ]
+  },
+  "content_type": {
+    "comment": "Against the recipient's manifest (8.1): the skill's output_modes must be able to satisfy the request's config.accepted_output, and the input's type must be within the skill's input_modes. Refusal code is the one 6.4 answers with.",
+    "cases": [
+      {
+        "id": "accepted_output_satisfiable",
+        "skill_output_modes": ["text/plain", "application/json"],
+        "accepted_output": ["application/json"],
+        "verdict": "publish",
+        "why": "at least one requested output mode is one the skill produces"
+      },
+      {
+        "id": "accepted_output_unsatisfiable",
+        "skill_output_modes": ["text/plain"],
+        "accepted_output": ["image/png"],
+        "verdict": "refuse_local",
+        "error_code": "CONTENT_TYPE_NOT_SUPPORTED",
+        "retryable": false,
+        "why": "no requested output mode is one the skill produces - the recipient would refuse with this exact code, so the sender does, locally"
+      }
+    ]
+  },
+  "mirror": {
+    "comment": "The point of the whole file: a pre-flight refusal and a remote refusal carry the same error code and the same retryable, so they are indistinguishable to the caller's error handling. What differs is scope, not shape: a pre-flight refusal is local - nothing was published, so nothing was signed, deduplicated, or retried - and its error.details MAY name the limit that fired.",
+    "same_code": true,
+    "same_retryable": true,
+    "nothing_published_on_refusal": true
+  },
+  "not_covered": {
+    "comment": "Boundaries, written down so nobody mistakes them for gaps.",
+    "items": [
+      "rate_limits throttling is a SHOULD (6.4b) and timing-dependent; it pins no byte and is not cased here.",
+      "Whether the recipient's DECLARED cap is true is the recipient's problem: a wrong declaration yields a remote refusal, and the mirror already makes that indistinguishable to the caller.",
+      "A recipient running a nonstandard cap it never declared (22.5): senders pre-flight against the default, and the divergence resolves remotely - which is the round trip 8.1's limits block exists to spare."
+    ]
+  }
+}

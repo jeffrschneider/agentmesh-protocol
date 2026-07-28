@@ -1,0 +1,70 @@
+{
+  "comment": "Domain-tag conformance fixture for the three canonical-JSON signatures that gained a versioned prefix on 2026-07-27: the node->agent vouch attestation (SPEC.md 4.4), the room descriptor (extensions/EXT-5-rooms.md 2), and the admission roster (extensions/EXT-6-admission.md 3). Each block pins the prefix, the canonical JSON of the object minus `sig`, and a really-signed object produced by the TypeScript SDK. The signature covers signed_bytes_prefix + canonical and NOTHING ELSE - the prefix never appears in the signed object, and each signature's historical encoding is unchanged (base64url for the vouch and the descriptor, standard base64 for the roster). Verifiers dual-accept the legacy untagged form through the 0.2 draft window and MUST refuse it from 0.3. THE FIXTURE IS THE AUTHORITY: when a test against it fails, fix the implementation, and when the fixture itself is believed wrong, change it only with a spec change alongside.",
+  "version": 1,
+  "spec": "SPEC.md 4.4 (vouch), extensions/EXT-5-rooms.md 2 (descriptor), extensions/EXT-6-admission.md 3 (roster); migration wording mirrors SPEC.md 5.3",
+  "identities": {
+    "sender_seed": "SUAEGDPNTWXACIF45CA23BUY36RIMWZXW5LEHSEOK2ONS5JWJ7PBC2EWBA",
+    "sender": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+    "recipient": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+    "comment": "The same published test vectors budget.json and inbound-protections.json use, deliberately: they are not real identities and control nothing, and reusing them keeps any new private-key-shaped string out of the repository."
+  },
+  "vouch": {
+    "comment": "SPEC.md 4.4: the node key (sender) vouches for a hosted agent (recipient). sig is base64url and covers signed_bytes_prefix + canonical.",
+    "signed_bytes_prefix": "agentmesh-vouch-v1\n",
+    "canonical": "{\"agent\":\"UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A\",\"expires_at\":\"2026-07-28T15:00:00.000Z\",\"issued_at\":\"2026-07-27T15:00:00.000Z\",\"node\":\"UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\"}",
+    "signed": {
+      "node": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+      "agent": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+      "issued_at": "2026-07-27T15:00:00.000Z",
+      "expires_at": "2026-07-28T15:00:00.000Z",
+      "sig": "_CMcGqKU9D08MSiAzxdzi974iTgv8ViCoMclFByk8gMXwhllmRBNhaPSGKUm6ZSOA014be2ES8jiGGUMUBhZAg"
+    }
+  },
+  "room_descriptor": {
+    "comment": "EXT-5 2: the creator (sender) signs the descriptor. sig is base64url and covers signed_bytes_prefix + canonical.",
+    "signed_bytes_prefix": "agentmesh-room-descriptor-v1\n",
+    "canonical": "{\"channels\":[\"main\"],\"created_at\":\"2026-07-27T15:00:00.000Z\",\"creator\":\"UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\",\"name\":\"signature-tags vector\",\"policy\":{},\"privacy\":\"capability\",\"record\":\"ephemeral\",\"room_id\":\"conformance-room-b7d9\",\"rooms\":\"v1\"}",
+    "signed": {
+      "rooms": "v1",
+      "room_id": "conformance-room-b7d9",
+      "name": "signature-tags vector",
+      "channels": ["main"],
+      "record": "ephemeral",
+      "policy": {},
+      "privacy": "capability",
+      "creator": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+      "created_at": "2026-07-27T15:00:00.000Z",
+      "sig": "8AnpOP4l9rq_m2OfQJRjKolPDhlsvm5gwzltvrYd4YyRC9TRKK9JUPL05Ac7ix7olhgtOzXtGOUrv1uzpymGBg"
+    }
+  },
+  "admission_roster": {
+    "comment": "EXT-6 3: the owner key (sender) signs the roster. sig is STANDARD base64 with padding - the roster signer's historical encoding, unchanged by the tag - and covers signed_bytes_prefix + canonical.",
+    "signed_bytes_prefix": "agentmesh-admission-roster-v1\n",
+    "canonical": "{\"admission\":\"v1\",\"defaults\":{\"anonymous\":\"block\",\"contact\":\"allow\",\"registered\":\"hold\"},\"entries\":[{\"note\":\"conformance vector\",\"stance\":\"allow\",\"subject\":\"UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A\",\"updated_at\":\"2026-07-27T15:00:00.000Z\"}],\"limits\":{\"inbound_model_budget_per_day\":500000,\"per_sender_per_hour\":12},\"owner_key\":\"UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\",\"updated_at\":\"2026-07-27T15:00:00.000Z\"}",
+    "signed": {
+      "admission": "v1",
+      "owner_key": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+      "defaults": { "contact": "allow", "registered": "hold", "anonymous": "block" },
+      "limits": { "per_sender_per_hour": 12, "inbound_model_budget_per_day": 500000 },
+      "entries": [
+        {
+          "subject": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+          "stance": "allow",
+          "note": "conformance vector",
+          "updated_at": "2026-07-27T15:00:00.000Z"
+        }
+      ],
+      "updated_at": "2026-07-27T15:00:00.000Z",
+      "sig": "kWdzzQ1lm6Zy1seMst6BwDoxx7L6SBEIcjkZdPimOPUQgjSLnZiKSAuAHZrJCsg8KTGlbpFl1E4sBp4bBsc8DQ=="
+    }
+  },
+  "not_covered": {
+    "comment": "Boundaries, written down so nobody mistakes them for gaps.",
+    "items": [
+      "The envelope signature's tag (agentmesh-envelope-v1) is pinned by conformance/budget.json and conformance/inbound-protections.json, not here.",
+      "The 9.7 portable trust attestation is domain-separated by an in-object type field (agentmesh-trust-attestation-v1), not a byte prefix; it is deliberately unchanged.",
+      "The PAN card signature is governed by SPEC-NAMING and pinned by conformance/naming.json; it is out of this fixture's scope.",
+      "The legacy untagged forms are accepted by verifiers through the 0.2 draft window but are deliberately NOT pinned here: the fixture holds implementations to the form signers must EMIT."
+    ]
+  }
+}

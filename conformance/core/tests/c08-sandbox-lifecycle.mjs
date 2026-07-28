@@ -72,17 +72,37 @@ export default {
         if (hasMailbox) fails.push("sandbox agent got an offline mailbox (must be live-only)");
       }
 
-      // Release the lease like a good citizen.
-      await fetch(`${env.storefrontBase}/v1/guest/release`, {
+      // Release the lease like a good citizen — and PROVE the release was
+      // accepted. Releasing now requires proof that the caller holds the
+      // credential's seed: a bare publicKey used to be enough, which meant
+      // anyone could force a live credential back into the pool and then be
+      // handed it (assessment 3.4). An unasserted `.catch(() => {})` here would
+      // hide a 401 and leave this test claiming a release that never happened,
+      // so the status is checked.
+      const relTs = new Date().toISOString();
+      const relSig = Buffer.from(
+        nkeys.fromSeed(te.encode(g.seed)).sign(te.encode(`guest-release-v1:${g.publicKey}:${relTs}`)),
+      ).toString("base64");
+      const rel = await fetch(`${env.storefrontBase}/v1/guest/release`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ publicKey: g.publicKey, ts: relTs, sig: relSig }),
+      }).catch((e) => ({ ok: false, status: 0, statusText: e.message }));
+      if (!rel.ok) fails.push(`signed lease release refused: HTTP ${rel.status} ${rel.statusText ?? ""}`.trim());
+
+      // And the mirror: an UNSIGNED release must be refused, or the proof is
+      // decorative. A pool credential anyone can recycle is a credential
+      // anyone can be handed.
+      const bare = await fetch(`${env.storefrontBase}/v1/guest/release`, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ publicKey: g.publicKey }),
-      }).catch(() => {});
+      }).catch(() => null);
+      if (bare && bare.ok) fails.push("unsigned lease release was accepted (anyone can recycle a live credential)");
     } finally {
       await a?.close().catch(() => {});
       await nc?.close().catch(() => {});
     }
     return fails.length
       ? { status: "fail", detail: fails.join("; ") }
-      : { status: "pass", detail: "guest provisioned with declared contract, clamped from discovery, no mailbox, lease released" };
+      : { status: "pass", detail: "guest provisioned with declared contract, clamped from discovery, no mailbox, signed lease release accepted and unsigned refused" };
   },
 };

@@ -50,11 +50,22 @@ export default {
         }));
       }
       if (req.url === "/card") return res.end(signedCardDoc(domainKey, domainAgent));
+      // The signing key, published OUT OF BAND (SPEC-NAMING §5.3): a verifier
+      // must not bootstrap trust from the same response it is verifying, so a
+      // card whose only claimed key is inside itself proves nothing. This
+      // stand-in used to 404 here, which made it a registrar that cannot be
+      // verified at all rather than a legitimate anchor domain.
+      if (req.url === "/api/registrar-key") {
+        return res.end(JSON.stringify({ ok: true, keys: [domainKey.getPublicKey()] }));
+      }
       res.statusCode = 404;
       res.end();
     });
-    const registrar = await serve((_req, res) => {
+    const registrar = await serve((req, res) => {
       res.setHeader("content-type", "application/json");
+      if (req.url === "/api/registrar-key") {
+        return res.end(JSON.stringify({ ok: true, keys: [registrarKey.getPublicKey()] }));
+      }
       res.end(signedCardDoc(registrarKey, registrarAgent));
     });
 

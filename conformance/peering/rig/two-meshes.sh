@@ -11,10 +11,16 @@ RIG="${RIG:-$HOME/AppData/Local/Temp/claude/rig}"
 NS="$(find "$HOME/AppData/Local/Temp/claude/nats-restore/bin" -name nats-server.exe | head -1)"
 mkdir -p "$RIG/mA" "$RIG/mB"
 
+# Both rig servers state max_payload explicitly (1 MiB, nats-server's own
+# default) for the same reason the shipped configs do: the rig should refuse the
+# same sizes production refuses, so a size-related failure shows up here rather
+# than only after deploy. Same value as the default, so nothing the peering tests
+# send changes behaviour.
 cat > "$RIG/meshA.conf" <<EOF
 server_name: meshA
 host: 127.0.0.1
 port: 14421
+max_payload: 1048576
 http: 127.0.0.1:18461
 websocket { listen: "127.0.0.1:14461", no_tls: true }
 gateway {
@@ -28,6 +34,7 @@ cat > "$RIG/meshB.conf" <<EOF
 server_name: meshB
 host: 127.0.0.1
 port: 14422
+max_payload: 1048576
 http: 127.0.0.1:18462
 websocket { listen: "127.0.0.1:14462", no_tls: true }
 gateway {

@@ -1,0 +1,401 @@
+{
+  "comment": "Canonical-JSON conformance fixture (SPEC.md 5.3). Canonical JSON is RFC 8785 (JCS) — ECMAScript number serialization, minimal string escaping, UTF-16 code unit key sort — with AgentMesh's two rules stated in 5.3: absent members are omitted (never serialized as null), and null, where present, is a value distinct from absent. Every vector's expected bytes were derived from RFC 8785's rules and Appendix B, then confirmed byte-identical against the TS SDK's canonicalJSON (2026-07-27, zero TS changes needed) before the Rust SDK was held to them. Tests: sdk-typescript/__tests__/unit/canonical-json.test.ts and sdk-rust/tests/canonical_json.rs. THE FIXTURE IS THE AUTHORITY: a failing implementation is wrong; change a vector only with a spec change alongside, because a byte change here is a signature break for every envelope in flight.",
+  "version": 1,
+  "spec": "SPEC.md 5.3 (canonical JSON), RFC 8785 (JCS)",
+  "encoding": "Each vector: parse `input_json` (raw JSON text) with the implementation's JSON parser, canonicalize the value, and compare against `canonical` — the exact canonical text; the signed bytes are its UTF-8 encoding. `number_bits` rows are RFC 8785 Appendix B: the big-endian hex IEEE-754 bit pattern of a double and its required serialization; they enter the pipeline as f64, not as JSON text, so they also pin values a lossy parser could never reach.",
+  "vectors": [
+    {
+      "name": "int_zero",
+      "input_json": "0",
+      "canonical": "0"
+    },
+    {
+      "name": "int_one",
+      "input_json": "1",
+      "canonical": "1"
+    },
+    {
+      "name": "int_minus_one",
+      "input_json": "-1",
+      "canonical": "-1"
+    },
+    {
+      "name": "int_max_safe",
+      "input_json": "9007199254740991",
+      "canonical": "9007199254740991"
+    },
+    {
+      "name": "int_2p53",
+      "input_json": "9007199254740992",
+      "canonical": "9007199254740992",
+      "note": "RFC 8785 Appendix B row 4340000000000000."
+    },
+    {
+      "name": "int_2p53_negative",
+      "input_json": "-9007199254740992",
+      "canonical": "-9007199254740992"
+    },
+    {
+      "name": "int_2p53_plus_1",
+      "input_json": "9007199254740993",
+      "canonical": "9007199254740992",
+      "note": "JCS numbers are IEEE-754 doubles (RFC 8785 3.2.2.3): 2^53+1 is not representable and rounds to 2^53. A sender needing exact integers beyond 2^53 must carry them as strings (I-JSON, RFC 7493)."
+    },
+    {
+      "name": "int_u64_max",
+      "input_json": "18446744073709551615",
+      "canonical": "18446744073709552000",
+      "note": "2^64-1 as a double is 2^64; ECMAScript integer notation applies up to 1e21."
+    },
+    {
+      "name": "float_1e21",
+      "input_json": "1e21",
+      "canonical": "1e+21",
+      "note": "First magnitude serialized in exponent form; note the explicit plus sign. RFC 8785 Appendix B row 444b1ae4d6e2ef50."
+    },
+    {
+      "name": "float_1e20",
+      "input_json": "1e20",
+      "canonical": "100000000000000000000",
+      "note": "Below the 1e21 threshold: plain integer digits, NOT 1e+20."
+    },
+    {
+      "name": "float_below_1e21",
+      "input_json": "999999999999999900000",
+      "canonical": "999999999999999900000",
+      "note": "RFC 8785 Appendix B row 444b1ae4d6e2ef4f."
+    },
+    {
+      "name": "float_1e23",
+      "input_json": "1e23",
+      "canonical": "1e+23"
+    },
+    {
+      "name": "float_1e100",
+      "input_json": "1e100",
+      "canonical": "1e+100"
+    },
+    {
+      "name": "float_1e-6",
+      "input_json": "0.000001",
+      "canonical": "0.000001",
+      "note": "Smallest magnitude still in decimal notation, NOT 1e-6. RFC 8785 Appendix B row 3eb0c6f7a0b5ed8d."
+    },
+    {
+      "name": "float_1e-7",
+      "input_json": "1e-7",
+      "canonical": "1e-7",
+      "note": "First magnitude below 1e-6: exponent form, no plus sign on negative exponents."
+    },
+    {
+      "name": "float_9999e-7",
+      "input_json": "9.999999999999997e-7",
+      "canonical": "9.999999999999997e-7",
+      "note": "RFC 8785 Appendix B row 3eb0c6f7a0b5ed8c."
+    },
+    {
+      "name": "float_tenth",
+      "input_json": "0.1",
+      "canonical": "0.1"
+    },
+    {
+      "name": "float_third",
+      "input_json": "0.3333333333333333",
+      "canonical": "0.3333333333333333"
+    },
+    {
+      "name": "float_long_double",
+      "input_json": "333333333.33333325",
+      "canonical": "333333333.33333325",
+      "note": "RFC 8785 Appendix B row 41b3de4355555554: 17 significant digits needed to round-trip."
+    },
+    {
+      "name": "float_long_double_shorter",
+      "input_json": "333333333.3333333",
+      "canonical": "333333333.3333333",
+      "note": "RFC 8785 Appendix B row 41b3de4355555555: the neighbouring double needs only 16."
+    },
+    {
+      "name": "float_integral",
+      "input_json": "10.0",
+      "canonical": "10",
+      "note": "An integral double serializes without .0 — there is no float/int distinction in ECMAScript."
+    },
+    {
+      "name": "float_one_and_half",
+      "input_json": "1.5",
+      "canonical": "1.5"
+    },
+    {
+      "name": "negative_zero_float",
+      "input_json": "-0.0",
+      "canonical": "0",
+      "note": "RFC 8785 Appendix B row 8000000000000000: IEEE negative zero serializes as 0 (ECMAScript Number::toString), the sign is dropped."
+    },
+    {
+      "name": "negative_zero_int",
+      "input_json": "-0",
+      "canonical": "0"
+    },
+    {
+      "name": "float_min_subnormal",
+      "input_json": "5e-324",
+      "canonical": "5e-324",
+      "note": "RFC 8785 Appendix B row 0000000000000001."
+    },
+    {
+      "name": "float_max_double",
+      "input_json": "1.7976931348623157e308",
+      "canonical": "1.7976931348623157e+308",
+      "note": "RFC 8785 Appendix B row 7fefffffffffffff."
+    },
+    {
+      "name": "float_2p68",
+      "input_json": "295147905179352830000",
+      "canonical": "295147905179352830000",
+      "note": "RFC 8785 Appendix B row 4430000000000000 (2^68)."
+    },
+    {
+      "name": "float_small_negative",
+      "input_json": "-0.0000033333333333333333",
+      "canonical": "-0.0000033333333333333333",
+      "note": "RFC 8785 Appendix B row becbf647612f3696."
+    },
+    {
+      "name": "string_control_chars",
+      "input_json": "\"\\u0000\\u0001\\u001f\"",
+      "canonical": "\"\\u0000\\u0001\\u001f\"",
+      "note": "Controls without a shorthand escape use lowercase \\u00hh."
+    },
+    {
+      "name": "string_shorthand_escapes",
+      "input_json": "\"\\b\\t\\n\\f\\r\"",
+      "canonical": "\"\\b\\t\\n\\f\\r\"",
+      "note": "The five controls with two-character escapes MUST use them."
+    },
+    {
+      "name": "string_vertical_tab",
+      "input_json": "\"\\u000b\"",
+      "canonical": "\"\\u000b\"",
+      "note": "U+000B has no shorthand in JSON."
+    },
+    {
+      "name": "string_quote_backslash",
+      "input_json": "\"\\\"\\\\\"",
+      "canonical": "\"\\\"\\\\\"",
+      "note": "Only quote and reverse solidus are escaped among printables."
+    },
+    {
+      "name": "string_solidus",
+      "input_json": "\"\\/\"",
+      "canonical": "\"/\"",
+      "note": "Solidus is NOT escaped, even when the input escaped it."
+    },
+    {
+      "name": "string_del_and_u0080",
+      "input_json": "\"\\u007f\\u0080\"",
+      "canonical": "\"\"",
+      "note": "Escaping stops at U+001F: DEL and C1 controls are emitted raw."
+    },
+    {
+      "name": "string_line_separators",
+      "input_json": "\"\\u2028\\u2029\"",
+      "canonical": "\"  \"",
+      "note": "U+2028/U+2029 are raw in JSON (they only need escaping in JavaScript source)."
+    },
+    {
+      "name": "string_non_bmp",
+      "input_json": "\"\\ud83d\\ude00\"",
+      "canonical": "\"😀\"",
+      "note": "A surrogate pair in the input is one non-BMP character, emitted as raw UTF-8."
+    },
+    {
+      "name": "string_precomposed",
+      "input_json": "\"\\u00e9\"",
+      "canonical": "\"é\"",
+      "note": "No normalization and no gratuitous escaping: the code point as sent."
+    },
+    {
+      "name": "sort_basic",
+      "input_json": "{\"b\":1,\"a\":2}",
+      "canonical": "{\"a\":2,\"b\":1}"
+    },
+    {
+      "name": "sort_empty_key",
+      "input_json": "{\"\":0,\"a\":1}",
+      "canonical": "{\"\":0,\"a\":1}",
+      "note": "The empty string sorts before everything."
+    },
+    {
+      "name": "sort_digits_before_letters",
+      "input_json": "{\"a\":0,\"A\":0,\"2\":0,\"10\":0}",
+      "canonical": "{\"10\":0,\"2\":0,\"A\":0,\"a\":0}",
+      "note": "Plain code-unit order: \"10\" < \"2\", uppercase before lowercase. Not numeric, not locale-aware."
+    },
+    {
+      "name": "sort_rfc_example",
+      "input_json": "{\"\\u20ac\":\"Euro Sign\",\"\\r\":\"Carriage Return\",\"\\ufb33\":\"Hebrew Letter Dalet With Dagesh\",\"1\":\"One\",\"\\ud83d\\ude00\":\"Emoji: Grinning Face\",\"\\u0080\":\"Control\",\"\\u00f6\":\"Latin Small Letter O With Diaeresis\"}",
+      "canonical": "{\"\\r\":\"Carriage Return\",\"1\":\"One\",\"\":\"Control\",\"ö\":\"Latin Small Letter O With Diaeresis\",\"€\":\"Euro Sign\",\"😀\":\"Emoji: Grinning Face\",\"דּ\":\"Hebrew Letter Dalet With Dagesh\"}",
+      "note": "RFC 8785 3.2.3's own example, verbatim."
+    },
+    {
+      "name": "sort_beyond_bmp",
+      "input_json": "{\"\\ufb00\":\"bmp\",\"\\ud83d\\ude00\":\"astral\"}",
+      "canonical": "{\"😀\":\"astral\",\"ﬀ\":\"bmp\"}",
+      "note": "THE sort vector that separates UTF-16 code unit order from UTF-8 byte order: U+1F600's high surrogate 0xD83D sorts before U+FB00, while its UTF-8 bytes (F0...) sort after (EF...)."
+    },
+    {
+      "name": "null_value",
+      "input_json": "null",
+      "canonical": "null"
+    },
+    {
+      "name": "true_value",
+      "input_json": "true",
+      "canonical": "true"
+    },
+    {
+      "name": "false_value",
+      "input_json": "false",
+      "canonical": "false"
+    },
+    {
+      "name": "member_null",
+      "input_json": "{\"a\":null,\"b\":1}",
+      "canonical": "{\"a\":null,\"b\":1}",
+      "note": "null, where present, is a value and is serialized. Compare member_absent: different bytes, different signature."
+    },
+    {
+      "name": "member_absent",
+      "input_json": "{\"b\":1}",
+      "canonical": "{\"b\":1}",
+      "note": "A member the sender did not set MUST NOT be serialized as null — it is simply not there. Compare member_null."
+    },
+    {
+      "name": "parent_span_id_root",
+      "input_json": "{\"parent_span_id\":null,\"span_id\":\"00f067aa0ba902b7\"}",
+      "canonical": "{\"parent_span_id\":null,\"span_id\":\"00f067aa0ba902b7\"}",
+      "note": "The envelope schema itself uses an explicit null: trace.parent_span_id is null for root spans (SPEC.md 5.2) and those bytes are signed."
+    },
+    {
+      "name": "nested_mixed",
+      "input_json": "{\"z\":[2,1,{\"b\":null,\"a\":[1e21,\"\\u000b\"]}],\"A\":{},\"\":[]}",
+      "canonical": "{\"\":[],\"A\":{},\"z\":[2,1,{\"a\":[1e+21,\"\\u000b\"],\"b\":null}]}",
+      "note": "Sorting recurses into every object; arrays keep their order."
+    },
+    {
+      "name": "empty_object",
+      "input_json": "{}",
+      "canonical": "{}"
+    },
+    {
+      "name": "empty_array",
+      "input_json": "[]",
+      "canonical": "[]"
+    },
+    {
+      "name": "array_order_kept",
+      "input_json": "[3,1,2]",
+      "canonical": "[3,1,2]",
+      "note": "Arrays are never sorted."
+    }
+  ],
+  "number_bits": [
+    {
+      "ieee754_hex": "0000000000000000",
+      "canonical": "0"
+    },
+    {
+      "ieee754_hex": "8000000000000000",
+      "canonical": "0"
+    },
+    {
+      "ieee754_hex": "0000000000000001",
+      "canonical": "5e-324"
+    },
+    {
+      "ieee754_hex": "8000000000000001",
+      "canonical": "-5e-324"
+    },
+    {
+      "ieee754_hex": "7fefffffffffffff",
+      "canonical": "1.7976931348623157e+308"
+    },
+    {
+      "ieee754_hex": "ffefffffffffffff",
+      "canonical": "-1.7976931348623157e+308"
+    },
+    {
+      "ieee754_hex": "4340000000000000",
+      "canonical": "9007199254740992"
+    },
+    {
+      "ieee754_hex": "c340000000000000",
+      "canonical": "-9007199254740992"
+    },
+    {
+      "ieee754_hex": "4430000000000000",
+      "canonical": "295147905179352830000"
+    },
+    {
+      "ieee754_hex": "44b52d02c7e14af5",
+      "canonical": "9.999999999999997e+22"
+    },
+    {
+      "ieee754_hex": "44b52d02c7e14af6",
+      "canonical": "1e+23"
+    },
+    {
+      "ieee754_hex": "44b52d02c7e14af7",
+      "canonical": "1.0000000000000001e+23"
+    },
+    {
+      "ieee754_hex": "444b1ae4d6e2ef4e",
+      "canonical": "999999999999999700000"
+    },
+    {
+      "ieee754_hex": "444b1ae4d6e2ef4f",
+      "canonical": "999999999999999900000"
+    },
+    {
+      "ieee754_hex": "444b1ae4d6e2ef50",
+      "canonical": "1e+21"
+    },
+    {
+      "ieee754_hex": "3eb0c6f7a0b5ed8c",
+      "canonical": "9.999999999999997e-7"
+    },
+    {
+      "ieee754_hex": "3eb0c6f7a0b5ed8d",
+      "canonical": "0.000001"
+    },
+    {
+      "ieee754_hex": "41b3de4355555553",
+      "canonical": "333333333.3333332"
+    },
+    {
+      "ieee754_hex": "41b3de4355555554",
+      "canonical": "333333333.33333325"
+    },
+    {
+      "ieee754_hex": "41b3de4355555555",
+      "canonical": "333333333.3333333"
+    },
+    {
+      "ieee754_hex": "41b3de4355555556",
+      "canonical": "333333333.3333334"
+    },
+    {
+      "ieee754_hex": "41b3de4355555557",
+      "canonical": "333333333.33333343"
+    },
+    {
+      "ieee754_hex": "becbf647612f3696",
+      "canonical": "-0.0000033333333333333333"
+    },
+    {
+      "ieee754_hex": "43143ff3c1cb0959",
+      "canonical": "1424953923781206.2"
+    }
+  ]
+}

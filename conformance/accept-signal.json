@@ -1,0 +1,119 @@
+{
+  "comment": "Accept-signal conformance fixture (SPEC.md 6.4a; reconciled wording in 6.4, 6.5, 7.0). Pins the wire shape of the accept - the non-terminal respond a responder's SDK MUST emit the moment a live handler admits a request, before the handler runs - and the node-level queued acknowledgement it must never be confused with. Both are pinned because the two signals certify different things ('accepted' asserts admission and a handler about to run; 'queued' asserts only that a mailbox holds the message) and a one-byte drift in either collapses that distinction. THE FIXTURE IS THE AUTHORITY: when a test against it fails, fix the implementation, and when the fixture itself is believed wrong, change it only with a spec change alongside.",
+  "version": 1,
+  "spec": "SPEC.md 6.4a (accept signal), 6.4/6.5/7.0 (mode told by the first substantive respond), 16.4 (node-held inbox), 22.2 (dedup), 7.7 (budget admission)",
+  "identities": {
+    "sender_seed": "SUAEGDPNTWXACIF45CA23BUY36RIMWZXW5LEHSEOK2ONS5JWJ7PBC2EWBA",
+    "responder": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+    "requester": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+    "comment": "The same published test vectors budget.json and inbound-protections.json use, deliberately: they are not real identities and control nothing, and reusing them keeps any new private-key-shaped string out of the repository. Note the roles are FLIPPED relative to budget.json: the accept is signed by the party answering, so the identity with the published seed plays the RESPONDER here (from), and the seedless identity plays the requester (to). Only the party with a published seed ever signs in a fixture."
+  },
+  "accept": {
+    "comment": "6.4a: emitted immediately on admission by a live handler - after the 22 inbound checks and 7.7 budget admission pass, before the handler is invoked. Non-terminal; payload.status 'accepted'; in_reply_to the admitted request's id; task_id ABSENT ON THE WIRE (5.3 absent-members rule - the spec's prose 'task_id: null' is the API-level normalization every bare respond gets, never a serialized null). 'accepted' is not a Task state (7.2) and never appears in a Task record.",
+    "required": {
+      "type": "respond",
+      "payload_status": "accepted",
+      "in_reply_to": "the admitted request's id",
+      "task_id": "absent on the wire; null at the API",
+      "terminal": false,
+      "emitted_before_handler": true
+    },
+    "envelope": {
+      "comment": "A fully-formed, really-signed accept, generated with the reference canonicalization and signing (sorted keys, no whitespace, absent fields omitted). 'canonical' is the canonical envelope JSON WITHOUT the domain prefix; the signature covers signed_bytes_prefix + canonical (SPEC.md 5.3). Any conforming implementation MUST rebuild those bytes from the envelope and verify the signature. in_reply_to names a request (id ...acc0) sent by the requester; that request is not signed here because the requester's seed is deliberately unpublished.",
+      "signed_bytes_prefix": "agentmesh-envelope-v1\n",
+      "canonical": "{\"from\":\"UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP\",\"id\":\"0198c001-0000-7000-8000-00000000acc1\",\"in_reply_to\":\"0198c001-0000-7000-8000-00000000acc0\",\"payload\":{\"status\":\"accepted\"},\"to\":\"UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A\",\"trace\":{\"parent_span_id\":\"acce000000000000\",\"span_id\":\"acce000000000001\",\"trace_id\":\"acce0000acce0000acce0000acce0000\"},\"ts\":\"2026-07-27T15:00:00.250Z\",\"type\":\"respond\",\"v\":\"0.2\"}",
+      "signed": {
+        "v": "0.2",
+        "id": "0198c001-0000-7000-8000-00000000acc1",
+        "type": "respond",
+        "ts": "2026-07-27T15:00:00.250Z",
+        "from": "UBMBH4BK6EIHQFVMHLSABFSQXB3JXUFZOXVZQTIERO33AD4HHAI3D7QP",
+        "to": "UAKQRYZBYFOC65OQZVJ3QPCIERDTRNNZPMOJUYXC3DGPRCDWSKD4HV5A",
+        "in_reply_to": "0198c001-0000-7000-8000-00000000acc0",
+        "trace": {
+          "trace_id": "acce0000acce0000acce0000acce0000",
+          "span_id": "acce000000000001",
+          "parent_span_id": "acce000000000000"
+        },
+        "payload": {
+          "status": "accepted"
+        },
+        "sig": "pIURFXnEkAlk6eTfV1iKxL5IH6FlAZv0X3bCEb9jE62rhR2tyFnGoILdwELMRgi8_Muymn5gp9NPG_xzGWUqCw"
+      }
+    }
+  },
+  "ordering": {
+    "comment": "6.4a: refusals of ADMISSION happen instead of an accept, never after one; failures of the WORK may follow an accept. first_reply is what the requester receives first on its reply channel; accept_sent is whether an accept was (or was ever allowed to be) emitted.",
+    "cases": [
+      {
+        "id": "admitted_live",
+        "scenario": "live handler; 22 inbound checks pass; 7.7 budget admission passes",
+        "accept_sent": true,
+        "first_reply": "the accept (payload.status 'accepted')",
+        "then": "the first substantive respond - bare terminal (task_id null), or non-terminal with a task_id - which is what tells the requester the mode (7.0)"
+      },
+      {
+        "id": "budget_refused_at_admission",
+        "scenario": "responder cannot meet the offered budget (7.7)",
+        "accept_sent": false,
+        "first_reply": "error respond, BUDGET_INSUFFICIENT or DEADLINE_UNMEETABLE, carrying the estimate"
+      },
+      {
+        "id": "oversize_refused",
+        "scenario": "sender text over the 22.5 cap",
+        "accept_sent": false,
+        "first_reply": "error respond, CONTEXT_TOO_LARGE, retryable false (22.7)"
+      },
+      {
+        "id": "stale_or_misaddressed",
+        "scenario": "envelope fails 22.3 or 22.4",
+        "accept_sent": false,
+        "first_reply": "nothing - these refusals are silent by design (22.7)"
+      },
+      {
+        "id": "attended_inbox",
+        "scenario": "node holds the inbox for an attended session (16.4); no handler runs at delivery time",
+        "accept_sent": false,
+        "first_reply": "the node-level queued ack (below), never 'accepted'"
+      },
+      {
+        "id": "work_fails_after_accept",
+        "scenario": "handler admitted, then dispatch or execution fails (SKILL_NOT_FOUND, INPUT_INVALID, a plain failure)",
+        "accept_sent": true,
+        "first_reply": "the accept",
+        "then": "a terminal error respond - legal, because a failure of the work may follow an accept; only a refusal of admission may not"
+      }
+    ]
+  },
+  "queued_ack": {
+    "comment": "The node-level convention for the buffered path (SHOULD for nodes, 6.4a), already implemented by the reference adapter: a request delivered into a node-held inbox for an attended session is answered synchronously with this payload shape, and the real reply arrives later at the sender's own inbox correlated by in_reply_to (6.4). 'queued' certifies delivery to a held mailbox ONLY - deliberately not admission: the reference adapter answers the identical shape whether the message was queued, held for review, or refused, so a refused sender cannot distinguish refusal from delivery.",
+    "shape": {
+      "queued": true,
+      "inbox_id": "<uuid>",
+      "text": "<informative, implementation-chosen>"
+    },
+    "pinned": [
+      "queued is boolean true, not a string",
+      "inbox_id is present and non-empty",
+      "text is informative only and never part of the contract"
+    ],
+    "disjointness": "'accepted' means a handler will run now; 'queued' means a mailbox holds the message. One message never receives both."
+  },
+  "caller_semantics": {
+    "comment": "6.4a, receiver side of the accept.",
+    "timeout_reset": "on receiving an accept the caller SHOULD reset its response timeout (config.timeout_ms, 6.4)",
+    "deadline_unmoved": "the 7.7 budget deadline is absolute and unaffected by an accept",
+    "not_a_mode_signal": "bare vs Task is told by the first substantive respond (7.0); the accept chooses neither",
+    "request_still_outstanding": "a requester's SDK MUST NOT resolve the request on an accept; the request completes on the first respond whose payload.status is not 'accepted'",
+    "dedup": "an accept deduplicates on (from, id) like any envelope (22.2)"
+  },
+  "not_covered": {
+    "comment": "Boundaries, written down so nobody mistakes them for gaps.",
+    "items": [
+      "A mailbox-drain dispatch (16.4) MUST NOT emit an accept, even though it runs a live handler: the accept is a live-delivery signal only, and the drained caller stopped waiting when its window closed. Settled 2026-07-27 after two independent implementations chose opposite readings of a then-silent spec - the substantive respond, delivered to the sender inbox, is the drain path entire answer.",
+      "Whether the handler actually runs after an accept is unverifiable from outside, like 7.7's spend: the accept is the SDK's statement at admission time, and a responder that accepts and then stalls is visible only through the substantive reply never arriving.",
+      "The queued ack's text field is implementation prose, never parsed.",
+      "Service operations (register 6.2, discover 6.3) and describe (10.14) carry no accept; this fixture pins nothing about them."
+    ]
+  }
+}

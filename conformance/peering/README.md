@@ -30,14 +30,30 @@ tests cite their spec sections precisely so that argument can be had against
 the text, not against vibes.
 
 `expectations.json` is the recorded truth of the current run. CI (`--ci`)
-fails only on regression: a test recorded as `pass` that stops passing.
-Turning a red test green is celebrated by updating the baseline (`--update`)
-in the same commit as the implementation.
+fails on regression — a test recorded as `pass` that stops passing — and on
+any `not-validated` result (below). Turning a red test green is celebrated
+by updating the baseline (`--update`) in the same commit as the
+implementation.
+
+**`not-validated` is not a skip.** When a credential file was CONFIGURED
+(explicit env var, or the default path exists on disk) but could not be read,
+was empty, or was malformed, the tests that needed it report `not-validated`
+instead of `env-skip`, the summary calls them out separately, and `--ci`
+exits 1. The reason: "passes and env-skips only" must never be satisfiable by
+breaking a secret — an unreadable creds file would otherwise skip exactly the
+tests that would have caught it. The fix is always the credential file, never
+the baseline.
 
 ## Environment contract
 
 Everything defaults to the public reference deployment; tests that need
 more, env-skip with the variable named.
+
+**The defaults are agentmesh.ai.** Any run in which an endpoint falls back to
+its default prints a banner naming every fallen-back variable and stating
+that the run is testing agentmesh.ai, not your mesh. If you operate your own
+instance, export the variables below — a board produced under the banner is
+evidence about the reference deployment only.
 
 | Variable | Default | Used by |
 |---|---|---|
@@ -61,6 +77,32 @@ board that does not name the artifact it tested is not evidence about any
 particular artifact.
 
 **Release gate, worked example.** t09 went red on the published 0.17.0 the moment SPEC.md §9.7 gained the type-tag and expiry requirements, and stayed red until 0.19.0 shipped with them. That is the gate working: the board reports on the artifact consumers actually install, and `AGENTMESH_SDK` is how you check a candidate before publishing it.
+
+**Which AGENT is under test** (`conformance/core` only, for now).
+`AGENTMESH_SDK` above chooses which build of the *TypeScript* SDK the harness
+imports. It cannot choose a different *language*, because the runner is Node
+and a Rust crate cannot be imported into it — so every core test that needed a
+live agent was an assertion about TypeScript and nothing else.
+`AGENTMESH_AGENT_SDK` fixes that by naming which implementation plays the agent
+under test:
+
+| Value | What answers |
+|---|---|
+| `typescript` | **the default** — the imported TS SDK, in the runner's own process, exactly as before this knob existed |
+| `typescript-subprocess` | the same TS SDK, driven as a child process over the conformance-agent line protocol (the control that proves the protocol, not the SDK) |
+| `rust` | the `agentmesh` crate, via `sdk-rust/examples/conformance_agent.rs` — build it first: `cd sdk-rust && cargo build --example conformance_agent` |
+
+The default is in-process on purpose: a run that asks for nothing new must
+behave exactly as it did before, with no child process in the picture. Every
+core run prints both lines — the SDK module the harness imported and the agent
+implementation that answered. The protocol, the backend table and the rules
+that keep the agents from becoming second SDK implementations are documented in
+`../core/lib/agent-under-test.mjs`.
+
+**An SDK that cannot run a test reports `not-validated`**, for the same reason
+a broken-but-configured credential does: the operator asked for that
+implementation, the test did not run, and a green board must not be reachable
+by pointing the suite at something that cannot answer. Converted so far: `c03`.
 
 **Conformance seams** (test-only injection points implementations MUST honor):
 
